@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>饭飞来 · 履约协同原型 Demo</title>
+<style>
+:root{--p:#185FA5;--bg:#F6F5F2;--line:#E5E7EB;--tx:#1F2329;--mut:#6B7280;--ok:#0F6E56;--warn:#854F0B;--err:#A32D2D;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+body{background:var(--bg);color:var(--tx);display:flex;justify-content:center;min-height:100vh;padding:16px 10px;}
+.wrap{width:100%;max-width:860px;}
+.note{margin:0 auto 12px;font-size:12px;color:var(--mut);text-align:center;line-height:1.6;max-width:640px;}
+.phone{max-width:400px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;}
+.roles{display:flex;border-bottom:1px solid var(--line);}
+.role{flex:1;text-align:center;padding:12px 0;font-size:13px;color:var(--mut);cursor:pointer;border-bottom:2px solid transparent;user-select:none;}
+.role.on{color:var(--p);border-bottom-color:var(--p);font-weight:600;}
+.screen{display:none;padding:14px;min-height:520px;}
+.screen.on{display:block;}
+.card{border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:11px;}
+.card h3{font-size:14px;margin-bottom:6px;}
+.row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:6px 0;gap:8px;}
+.mut{color:var(--mut);font-size:12px;line-height:1.5;}
+.btn{background:var(--p);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:13px;cursor:pointer;white-space:nowrap;}
+.btn.ok{background:var(--ok);}
+.btn.gray{background:#F1F3F5;color:var(--tx);}
+.btn:disabled{background:#C9CED6;cursor:not-allowed;}
+.steps{display:flex;margin:12px 0 2px;}
+.step{flex:1;text-align:center;font-size:11px;color:var(--mut);position:relative;}
+.dot{width:10px;height:10px;border-radius:50%;background:#D8DCE2;margin:0 auto 4px;}
+.step.done .dot{background:var(--ok);}
+.step.done{color:var(--ok);}
+.step.cur .dot{background:var(--p);box-shadow:0 0 0 3px rgba(24,95,165,.15);}
+.step.cur{color:var(--p);font-weight:600;}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#E6F1FB;color:var(--p);}
+.tag.warn{background:#FAEEDA;color:var(--warn);}
+.tag.err{background:#FCEBEB;color:var(--err);}
+.tag.ok{background:#E1F5EE;color:var(--ok);}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th,td{padding:6px 4px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#26215C;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9;max-width:90vw;}
+.toast.show{opacity:.95;}
+.kpis{display:flex;gap:9px;margin-bottom:11px;}
+.kpi{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;}
+.kpi b{display:block;font-size:17px;color:var(--p);}
+.kpi span{font-size:11px;color:var(--mut);}
+.item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;font-size:13px;}
+.reply{border:1px solid #B5D4F4;background:#E6F1FB;border-radius:9px;padding:9px;font-size:12px;margin-top:8px;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="note">「饭飞来」履约协同原型 · 模拟数据 · 核心演示闭环：<b>核销替代撕小票 → 自动分账 → 跨端状态同步</b><br>试试：在「用户端」点催单 → 切到「负责人」看工单 → 到「上楼学生端」核销 → 回「用户端」看状态变化</div>
+<div class="phone">
+<div class="roles">
+<div class="role on" data-r="user" onclick="go('user')">用户端</div>
+<div class="role" data-r="rider" onclick="go('rider')">骑手端</div>
+<div class="role" data-r="runner" onclick="go('runner')">上楼学生端</div>
+<div class="role" data-r="boss" onclick="go('boss')">负责人</div>
+</div>
+<div class="screen on" id="s-user"></div>
+<div class="screen" id="s-rider"></div>
+<div class="screen" id="s-runner"></div>
+<div class="screen" id="s-boss"></div>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var STEPS=["商家接单","骑手配送","分餐点分餐","上楼送达","核销完成"];
+var S={
+ user:{shop:"老麻抄手（西门店）",addr:"桃园10栋 423",no:"A1024",batch:3,step:1,complain:false,reply:false},
+ rider:{name:"阿伟",bind:"老麻抄手",trips:2,orders:40,delivered:false},
+ runner:{building:"桃园10栋",batch:3,checked:9,income:"10.80",list:[
+   {code:"A1024 · 423",ok:false},{code:"A1031 · 502",ok:false},{code:"A1036 · 618",ok:false},{code:"A1040 · 415",ok:false},{code:"A1044 · 203",ok:false}]},
+ boss:{orders:486,tickets:[],shiftAlert:true,settled:false}
+};
+function money(n){return n.toFixed(2);}
+function toast(msg){var t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show");},2200);}
+function go(r){document.querySelectorAll(".role").forEach(function(e){e.classList.toggle("on",e.dataset.r===r);});["user","rider","runner","boss"].forEach(function(k){document.getElementById("s-"+k).classList.toggle("on",k===r);});render();}
+function stepsHtml(cur){return '<div class="steps">'+STEPS.map(function(s,i){var c=i<cur?"done":(i===cur?"cur":"");return '<div class="step '+c+'"><div class="dot"></div>'+s+'</div>';}).join("")+"</div>";}
+function renderUser(){
+ var u=S.user,h='<div class="card"><h3>'+u.shop+' <span class="tag">'+u.no+'</span></h3><div class="mut">收货：'+u.addr+' · 您的订单在第 '+u.batch+' 批</div>';
+ h+=stepsHtml(u.step);
+ h+='<div class="row"><span class="mut">'+(u.step>=4?"第"+u.batch+"批已全部核销，用餐愉快":"预计 "+(u.step>=2?"19:58":"20:05")+" 前送达")+'</span></div>';
+ h+='<div class="row"><button class="btn ok" '+(u.step>=4?"disabled":"")+' onclick="notify()">'+(u.step>=4?"已送达":"订阅到楼通知")+'</button>';
+ h+='<button class="btn gray" '+(u.complain||u.step>=4?"disabled":"")+' onclick="complain()">'+(u.complain?"已催单":"餐没到？催单")+'</button></div>';
+ if(u.reply)h+='<div class="reply">负责人回复：已联系桃园10栋配送同学，第3批 19:58 前送达，请留意。</div>';
+ h+='</div><div class="mut">原流程：用户问商家 → 商家问园区群 → 群里问学生（四跳）<br>现流程：催单一键直达负责人工单池，处理结果自动回执</div>';
+ document.getElementById("s-user").innerHTML=h;}
+function renderRider(){
+ var r=S.rider,h='<div class="card"><h3>'+r.name+' <span class="tag">绑定商家：'+r.bind+'</span></h3>';
+ h+='<div class="kpis"><div class="kpi"><b>'+r.trips+'</b><span>今日趟数</span></div><div class="kpi"><b>'+r.orders+'</b><span>今日单量</span></div><div class="kpi"><b>¥'+money(r.orders*1.0)+'</b><span>预计收入(1.0/单)</span></div></div>';
+ h+='<div class="card"><h3>本趟任务</h3><div class="row"><span>'+r.bind+'（西门） → 桃园分餐点</span><span class="tag">18 单</span></div>';
+ if(!r.delivered)h+='<div class="row"><span class="mut">整袋连同小票送达后，点击交接</span><button class="btn" onclick="deliver()">送达分餐点</button></div>';
+ else h+='<div class="row"><span class="tag ok">已交接 · 批次进入分餐</span><span class="mut">收入 +18.00 元</span></div>';
+ h+='</div><div class="mut">交接核销后，用户端批次进度自动更新</div>';
+ document.getElementById("s-rider").innerHTML=h;}
+function renderRunner(){
+ var n=S.runner,h='<div class="kpis"><div class="kpi"><b>'+n.checked+' / '+(n.checked+n.list.length)+'</b><span>第'+n.batch+'批 已核销</span></div><div class="kpi"><b>¥'+n.income+'</b><span>今日收入(1.2/单)</span></div></div>';
+ h+='<div class="card"><h3>'+n.building+' · 第 '+n.batch+' 批</h3><div class="mut">原流程：送完撕小票计数，周结时人工数票核工资<br>现流程：逐单核销自动计件，实时计入流水</div></div>';
+ h+='<div class="card"><h3>待核销 '+n.list.length+' 单</h3>';
+ n.list.forEach(function(o,idx){h+='<div class="item"><span>'+o.code+'</span><button class="btn ok" onclick="check('+idx+')">核销 +1.2</button></div>';});
+ if(!n.list.length)h+='<div class="row"><span class="tag ok">本批全部核销完成</span></div>';
+ h+='</div>';
+ document.getElementById("s-runner").innerHTML=h;}
+function renderBoss(){
+ var b=S.boss,h='<div class="kpis"><div class="kpi"><b>'+b.orders+'</b><span>今日单量</span></div><div class="kpi"><b>¥'+money(b.orders*2.5)+'</b><span>分账流水</span></div><div class="kpi"><b>'+b.tickets.filter(function(t){return !t.done;}).length+'</b><span>待处理工单</span></div></div>';
+ h+='<div class="card"><h3>分账流水 <span class="tag">2.5 = 1.0 + 1.2 + 0.3 自动拆分</span></h3><table><tr><th>单号</th><th>商家</th><th>骑手</th><th>上楼</th><th>负责人</th></tr>';
+ [["A1024","老麻抄手"],["A1025","蜜雪冰城"],["A1026","黄记焖面"],["A1027","塔斯汀"]].forEach(function(r){h+='<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td>1.00</td><td>1.20</td><td>0.30</td></tr>';});
+ h+='</table><div class="mut">周结自动生成结算单，替代人工向商家收款+数票核发</div>';
+ h+='<div class="row"><button class="btn" '+(b.settled?"disabled":"")+' onclick="settle()">'+(b.settled?"结算单已生成":"生成本周结算单")+'</button></div></div>';
+ h+='<div class="card"><h3>异常工单池</h3>';
+ if(!b.tickets.length)h+='<div class="mut">暂无工单 · 在「用户端」点催单试试</div>';
+ b.tickets.forEach(function(t,i){h+='<div class="item"><span>'+t.txt+'</span>'+(t.done?'<span class="tag ok">已处理</span>':'<button class="btn" onclick="resolve('+i+')">处理</button>')+'</div>';});
+ h+='</div>';
+ h+='<div class="card"><h3>排班 <span class="tag warn">明日预警</span></h3><div class="row"><span class="mut">桂园4栋 12:00-14:00 上楼岗仅 1 人报名</span>'+(b.shiftAlert?'<button class="btn gray" onclick="shiftCall()">呼叫补位</button>':'<span class="tag ok">已呼叫</span>')+'</div></div>';
+ document.getElementById("s-boss").innerHTML=h;}
+function render(){renderUser();renderRider();renderRunner();renderBoss();}
+function notify(){toast("已订阅 · 第3批到楼时将推送通知");}
+function complain(){S.user.complain=true;S.boss.tickets.push({txt:"A1024 · 桃园10栋423 · 催单：餐未到",done:false});toast("已直达负责人工单池，无需再问商家");render();}
+function resolve(i){S.boss.tickets[i].done=true;S.user.reply=true;toast("工单已处理 · 回执已发送用户");render();}
+function deliver(){S.rider.delivered=true;S.rider.trips++;S.rider.orders+=18;if(S.user.step<2)S.user.step=2;toast("交接完成 · 批次进入分餐，用户端已同步");render();}
+function check(idx){var o=S.runner.list[idx];o.ok=true;S.runner.list.splice(idx,1);S.runner.checked++;S.runner.income=money(S.runner.checked*1.2);if(!S.runner.list.length&&S.user.step<4){S.user.step=4;toast("第3批全部核销 · 用户端已置「核销完成」");}else{toast("核销成功 +1.2 元（替代撕小票）");}render();}
+function settle(){S.boss.settled=true;toast("本周结算单已生成：商家视图/个人视图 Excel 已导出");render();}
+function shiftCall(){S.boss.shiftAlert=false;toast("已向桂园园区群发送补位请求");render();}
+render();
+</script>
+</body>
+</html>
